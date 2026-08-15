@@ -133,7 +133,7 @@ const parse_gdb = async (): Promise<CourseGDB> => {
             allData[course.courseCode] = gdb;
 
             // Progressive Storage Update (Instant Save)
-            await storage.setItem('local:quizzes', { ...allData });
+            await storage.setItem('local:gdb', { ...allData });
 
         } catch (error) {
             console.error(`Error processing ${course.courseCode}:`, error);

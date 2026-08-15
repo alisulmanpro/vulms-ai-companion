@@ -70,6 +70,20 @@ declare global {
         printUrl: string;
     }
 
+    interface DataChangeEvent<T = any> {
+        eventType: 'ADDED' | 'UPDATED' | 'REMOVED';
+        category: 'quiz' | 'assignment' | 'gdb' | 'activity' | 'fee';
+        courseCode?: string;
+        data: T;
+        timestamp: number;
+    }
+
+    interface SyncPayload {
+        userId?: string;
+        events: DataChangeEvent[];
+        syncedAt: number;
+    }
+
     type CourseAssignments = Record<string, Assignment[]>;
     type CourseQuiz = Record<string, Quiz[]>;
     type CourseGDB = Record<string, GDB[]>;
