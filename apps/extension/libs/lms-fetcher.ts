@@ -5,8 +5,12 @@ import parse_assignments from "@/utils/parse-assignments";
 import parse_gdb from "@/utils/parse-gdb";
 import parse_quizzes from "@/utils/parse-quiz";
 
-const lms_fetcher = async () => {
-    const COOLDOWN_MINS = 60;
+const accountsStorage = storage.defineItem<AccountSummary | null>('local:accounts_data', {
+    defaultValue: null,
+});
+
+const LMSProcessSync = async () => {
+    const COOLDOWN_MINS = 1;
 
     const shouldRun = await canRunLmsFetcher(COOLDOWN_MINS);
     if (!shouldRun) {
@@ -61,4 +65,4 @@ const lms_fetcher = async () => {
     }
 }
 
-export default lms_fetcher
+export default LMSProcessSync
