@@ -1,3 +1,6 @@
+import { BASE_URL } from "@/constants/baseURLs";
+import { fetchHomePage, parseHtml } from "./parseAssignments";
+
 const ENDPOINTS = {
     home: `${BASE_URL}/Home.aspx`,
     listView: `${BASE_URL}/GDB/Default.aspx`,
@@ -109,17 +112,17 @@ const fetchCourseGDB = async (
     };
 }
 
-const parse_gdb = async (): Promise<CourseGDB> => {
+const parseGdb = async (): Promise<CourseGDB> => {
     const allData: CourseGDB = {};
 
-    console.log('[GDB] Scanning Home Page...');
+    console.log('[GDB Scrapper] Scanning Home Page...');
     const initial = await fetchHomePage();
 
     let currentViewState = initial.viewState;
     let currentVsGenerator = initial.vsGenerator;
 
     for (const course of initial.courses) {
-        console.log(`[${course.index + 1}/${initial.courses.length}] Fetching ${course.courseCode}...`);
+        console.log(`[GDB Scrapper] < ${course.index + 1}/${initial.courses.length} > Fetching ${course.courseCode}...`);
         ``
         try {
             const { gdb, newViewState, newVsGenerator } = await fetchCourseGDB(
@@ -144,4 +147,4 @@ const parse_gdb = async (): Promise<CourseGDB> => {
     return allData;
 }
 
-export default parse_gdb
+export default parseGdb

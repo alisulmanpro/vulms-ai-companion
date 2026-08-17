@@ -1,3 +1,5 @@
+import { BASE_URL } from "@/constants/baseURLs";
+import { fetchHomePage, parseHtml } from "./parseAssignments";
 
 const ENDPOINTS = {
     home: `${BASE_URL}/Home.aspx`,
@@ -102,17 +104,17 @@ const fetchCourseQuiz = async (
     };
 }
 
-const parse_quizzes = async (): Promise<CourseQuiz> => {
+const parseQuiz = async (): Promise<CourseQuiz> => {
     const allData: CourseQuiz = {};
 
-    console.log('[Quiz] Scanning Home Page...');
+    console.log('[Quiz Scrapper] Scanning Home Page...');
     const initial = await fetchHomePage();
 
     let currentViewState = initial.viewState;
     let currentVsGenerator = initial.vsGenerator;
 
     for (const course of initial.courses) {
-        console.log(`[${course.index + 1}/${initial.courses.length}] Fetching ${course.courseCode}...`);
+        console.log(`[Quiz Scrapper] < ${course.index + 1}/${initial.courses.length}] > Fetching ${course.courseCode}...`);
         ``
         try {
             const { quizzes, newViewState, newVsGenerator } = await fetchCourseQuiz(
@@ -137,4 +139,4 @@ const parse_quizzes = async (): Promise<CourseQuiz> => {
     return allData;
 }
 
-export default parse_quizzes
+export default parseQuiz

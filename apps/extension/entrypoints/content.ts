@@ -1,4 +1,4 @@
-import LMSProcessSync from "@/libs/lms-fetcher";
+import LMSProcessSync from "@/features/lms-fetcher/lmsFetcher";
 
 export default defineContentScript({
   matches: ['https://*.vu.edu.pk/*'],

@@ -1,5 +1,5 @@
-import { canRunLmsFetcher } from "@/helper/lmsFetcherGuard";
-import { scheduleNextAutoFetch } from "@/helper/lmsScheduler";
+import { canRunLmsFetcher } from "@/utils/lmsFetcherGuard";
+import { scheduleNextAutoFetch } from "@/utils/lmsScheduler";
 
 export const setupAlarmListeners = () => {
     browser.alarms.onAlarm.addListener(async (alarm) => {

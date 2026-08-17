@@ -1,12 +1,10 @@
-import { setupAlarmListeners } from './alarm';
-import { setupLmsSync } from './lmsSync';
-import { setupMessageListeners } from './messageHandler';
+import { setupAlarmListeners } from './alarms';
+import { setupMessageListeners } from './messages';
 
 export default defineBackground(() => {
     console.log('[Background Service Worker] Initialized.');
 
     // Initialize modular features
-    setupLmsSync();
     setupAlarmListeners();
     setupMessageListeners();
 });

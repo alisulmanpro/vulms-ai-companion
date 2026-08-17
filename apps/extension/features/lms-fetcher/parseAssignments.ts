@@ -1,4 +1,4 @@
-const BASE_URL = 'https://vulms.vu.edu.pk' as const;
+import { BASE_URL } from "@/constants/baseURLs";
 
 const SELECTORS = {
     viewState: '[name="__VIEWSTATE"]',
@@ -44,16 +44,16 @@ const extractCourseList = (doc: Document): CourseInfo[] => {
 
 const fetchHomePage = async (): Promise<HomeFetchResult> => {
     const res = await fetch(ENDPOINTS.home, { credentials: 'include' });
-    if (!res.ok) throw new Error(`Home fetch failed: ${res.status}`);
+    if (!res.ok) throw new Error(`[Home Scrapper] Request failed: ${res.status}`);
 
     const doc = parseHtml(await res.text());
     const { viewState, vsGenerator } = extractViewStateTokens(doc);
     const hfCourseCode = doc.querySelector<HTMLInputElement>(SELECTORS.hfCourseCode)?.value ?? '';
 
-    if (!viewState) throw new Error('__VIEWSTATE not found — session expired');
+    if (!viewState) throw new Error('[Assignments Scrapper] __VIEWSTATE not found — session expired');
 
     const courses = extractCourseList(doc);
-    if (courses.length === 0) throw new Error('No courses found');
+    if (courses.length === 0) throw new Error('[Assignments Scrapper] No courses found');
 
     return { viewState, vsGenerator, hfCourseCode, courses };
 };
@@ -164,17 +164,17 @@ const fetchCourseAssignments = async (
     };
 };
 
-const parse_assignments = async (): Promise<CourseAssignments> => {
+const parseAssignments = async (): Promise<CourseAssignments> => {
     const allData: CourseAssignments = {};
 
-    console.log('[Assignments] Scanning Home Page...');
+    console.log('[Assignments Scrapper] Scanning Home Page...');
     const initial = await fetchHomePage();
 
     let currentViewState = initial.viewState;
     let currentVsGenerator = initial.vsGenerator;
 
     for (const course of initial.courses) {
-        console.log(`[${course.index + 1}/${initial.courses.length}] Fetching ${course.courseCode}...`);
+        console.log(`[Assignments Scrapper] < ${course.index + 1}/${initial.courses.length} > Fetching ${course.courseCode}...`);
 
         try {
             const { assignments, newViewState, newVsGenerator } = await fetchCourseAssignments(
@@ -191,7 +191,7 @@ const parse_assignments = async (): Promise<CourseAssignments> => {
             await storage.setItem('local:assignments', { ...allData });
 
         } catch (error) {
-            console.error(`Error processing ${course.courseCode}:`, error);
+            console.error(`[Assignments Scrapper] Error processing ${course.courseCode}:`, error);
             allData[course.courseCode] = [];
         }
     }
@@ -199,5 +199,5 @@ const parse_assignments = async (): Promise<CourseAssignments> => {
     return allData;
 };
 
-export { fetchHomePage, extractViewStateTokens, parseHtml, BASE_URL }
-export default parse_assignments;
+export { fetchHomePage, extractViewStateTokens, parseHtml }
+export default parseAssignments;
