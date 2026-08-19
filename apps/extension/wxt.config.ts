@@ -1,14 +1,14 @@
-import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'wxt';
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "wxt";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  modules: ['@wxt-dev/module-react'],
+  modules: ["@wxt-dev/module-react"],
   manifest: {
-    permissions: ['storage', 'alarms', "tabs"],
+    permissions: ["storage", "alarms", "tabs"],
+    host_permissions: ["*://*.vu.edu.pk/*"],
   },
   vite: () => ({
     plugins: [tailwindcss()],
-  })
+  }),
 });
-
