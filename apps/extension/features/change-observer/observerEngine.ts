@@ -11,112 +11,221 @@
  * All comparison helpers below it are pure functions.
  */
 
-// ─── Storage Key ──────────────────────────────────────────────────────────────
-
-const LMS_DATA_KEY = 'local:lms_data' as const;
+import { LMS_DATA_KEY } from "@/constants/storage";
 
 // ─── Pure Comparison Helpers ──────────────────────────────────────────────────
 
 /**
- * Compares two flat arrays by a chosen primary-key field.
- * Returns only the changed items as `ObservedDiff` entries.
- * No storage access; no side-effects.
+ * Robust deep equality check that normalizes whitespace, coerces primitives (strings/numbers/booleans),
+ * and ignores transient fields to eliminate false positive diffs.
  */
-const diffItemArray = <T extends object>(
-    oldList: T[],
-    newList: T[],
-    keyField: keyof T,
-    category: ObservedDiff['category'],
-    courseCode?: string
-): ObservedDiff<T>[] => {
-    const diffs: ObservedDiff<T>[] = [];
+export const isDeepEqual = (
+  a: any,
+  b: any,
+  ignoreKeys: Set<string> = new Set(["fetchedAt", "lastChecked", "_id"]),
+): boolean => {
+  if (a === b) return true;
 
-    const oldMap = new Map<unknown, T>(
-        oldList.map((item) => [item[keyField], item])
-    );
-    const newMap = new Map<unknown, T>(
-        newList.map((item) => [item[keyField], item])
-    );
+  // Handle null / undefined cases
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return a === b;
+  }
 
-    // ADDED + UPDATED — iterate over fresh data
-    for (const [id, newItem] of newMap) {
-        const oldItem = oldMap.get(id);
+  // Coerce primitive comparisons (e.g., handles "10" vs 10 or "true" vs true)
+  if (
+    (typeof a === "string" ||
+      typeof a === "number" ||
+      typeof a === "boolean") &&
+    (typeof b === "string" || typeof b === "number" || typeof b === "boolean")
+  ) {
+    return String(a).trim() === String(b).trim();
+  }
 
-        if (oldItem === undefined) {
-            diffs.push({ category, eventType: 'ADDED', courseCode, details: newItem });
-        } else if (JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-            diffs.push({ category, eventType: 'UPDATED', courseCode, details: newItem });
-        }
+  if (typeof a !== "object" || typeof b !== "object") {
+    return a === b;
+  }
+
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isDeepEqual(a[i], b[i], ignoreKeys)) return false;
     }
+    return true;
+  }
 
-    // REMOVED — items in storage no longer present in fresh data
-    for (const [id, oldItem] of oldMap) {
-        if (!newMap.has(id)) {
-            diffs.push({ category, eventType: 'REMOVED', courseCode, details: oldItem });
-        }
-    }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return false;
+  }
 
-    return diffs;
+  const keysA = Object.keys(a).filter((k) => !ignoreKeys.has(k));
+  const keysB = Object.keys(b).filter((k) => !ignoreKeys.has(k));
+
+  if (keysA.length !== keysB.length) return false;
+
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if (!isDeepEqual(a[key], b[key], ignoreKeys)) return false;
+  }
+
+  return true;
 };
 
 /**
- * Diffs all courses for a course-keyed category
- * (assignments, quizzes, or gdbs).
+ * Resolves a unique primary key per category.
+ * - Quiz: quizId or courseCode + title
+ * - Assignment: assignmentId or title
+ * - GDB: gdbId or question
+ * - Fee: challanNo
+ */
+const getPrimaryKeyValue = (
+  item: any,
+  category: ObservedDiff["category"],
+  courseCode?: string,
+): string => {
+  const course = String(item.courseCode || courseCode || "").trim();
+
+  if (category === "quiz") {
+    if (item.quizId) return String(item.quizId).trim();
+
+    const srNo = item.srNo ? String(item.srNo).trim() : "";
+    return `${course}_sr${srNo}`;
+  }
+  if (category === "assignment") {
+    if (item.assignmentId) return String(item.assignmentId).trim();
+
+    const srNo = item.srNo ? String(item.srNo).trim() : "";
+    return `${course}_sr${srNo}`;
+  }
+  if (category === "gdb") {
+    if (item.gdbId) return String(item.gdbId).trim();
+
+    const srNo = item.srNo ? String(item.srNo).trim() : "";
+    return `${course}_sr${srNo}`;
+  }
+  if (category === "fee") {
+    const challanNo = item.challanNo ? String(item.challanNo).trim() : "";
+    return `${course}_challan${challanNo}`;
+  }
+  return "";
+};
+
+/**
+ * Compares two flat arrays by category-specific unique keys.
+ * Emits ONLY 'ADDED', 'UPDATED', or 'REMOVED' events.
+ */
+const diffItemArray = <T extends object>(
+  oldList: T[],
+  newList: T[],
+  category: ObservedDiff["category"],
+  courseCode?: string,
+): ObservedDiff<T>[] => {
+  const diffs: ObservedDiff<T>[] = [];
+
+  const oldMap = new Map<string, T>();
+  for (const item of oldList) {
+    const key = getPrimaryKeyValue(item, category, courseCode);
+    if (key) oldMap.set(key, item);
+  }
+
+  const newMap = new Map<string, T>();
+  for (const item of newList) {
+    const key = getPrimaryKeyValue(item, category, courseCode);
+    if (key) newMap.set(key, item);
+  }
+
+  // 1. ADDED & UPDATED Check
+  for (const [id, newItem] of newMap) {
+    const oldItem = oldMap.get(id);
+
+    if (oldItem === undefined) {
+      diffs.push({
+        category,
+        eventType: "ADDED",
+        courseCode,
+        details: newItem,
+      });
+    } else if (!isDeepEqual(oldItem, newItem)) {
+      diffs.push({
+        category,
+        eventType: "UPDATED",
+        courseCode,
+        details: newItem,
+      });
+    }
+  }
+
+  // 2. REMOVED Check
+  for (const [id, oldItem] of oldMap) {
+    if (!newMap.has(id)) {
+      diffs.push({
+        category,
+        eventType: "REMOVED",
+        courseCode,
+        details: oldItem,
+      });
+    }
+  }
+
+  return diffs;
+};
+
+/**
+ * Diffs all courses for a course-keyed category.
  */
 const diffCourseMap = <T extends object>(
-    oldData: Record<string, T[]>,
-    newData: Record<string, T[]>,
-    keyField: keyof T,
-    category: ObservedDiff['category']
+  oldData: Record<string, T[]>,
+  newData: Record<string, T[]>,
+  category: ObservedDiff["category"],
 ): ObservedDiff<T>[] => {
-    const allCourses = new Set([
-        ...Object.keys(oldData),
-        ...Object.keys(newData),
-    ]);
+  const allCourses = new Set([
+    ...Object.keys(oldData),
+    ...Object.keys(newData),
+  ]);
 
-    const diffs: ObservedDiff<T>[] = [];
+  const diffs: ObservedDiff<T>[] = [];
 
-    for (const courseCode of allCourses) {
-        const oldList = oldData[courseCode] ?? [];
-        const newList = newData[courseCode] ?? [];
-        const courseDiffs = diffItemArray(oldList, newList, keyField, category, courseCode);
-        diffs.push(...courseDiffs);
-    }
+  for (const courseCode of allCourses) {
+    const oldList = oldData[courseCode] ?? [];
+    const newList = newData[courseCode] ?? [];
+    const courseDiffs = diffItemArray(oldList, newList, category, courseCode);
+    diffs.push(...courseDiffs);
+  }
 
-    return diffs;
+  return diffs;
 };
 
 /**
  * Diffs the flat challans list inside AccountSummary.
- * `challanNo` is the stable primary key for fee challans.
  */
 const diffChallans = (
-    oldAccounts: AccountSummary | null,
-    newAccounts: AccountSummary | null
+  oldAccounts: AccountSummary | null,
+  newAccounts: AccountSummary | null,
 ): ObservedDiff<Challan>[] => {
-    const oldList = oldAccounts?.challansList ?? [];
-    const newList = newAccounts?.challansList ?? [];
-    return diffItemArray<Challan>(oldList, newList, 'challanNo', 'fee');
+  const oldList = oldAccounts?.challansList ?? [];
+  const newList = newAccounts?.challansList ?? [];
+  return diffItemArray<Challan>(oldList, newList, "fee");
 };
 
 /**
- * Pure function: computes all differences between two LmsSnapshot objects.
- * Returns an empty array when the snapshots are identical.
- *
- * Primary keys used:
- *  • Quizzes      → `title`       (natural identity on VU LMS)
- *  • Assignments  → `title`       (natural identity on VU LMS)
- *  • GDBs         → `question`    (natural identity on VU LMS)
- *  • Fee Challans → `challanNo`   (server-issued unique key)
+ * Computes all differences between two LmsSnapshot objects.
+ * Returns an array of differences containing 'SAME', 'ADDED', 'UPDATED', or 'REMOVED' events.
  */
 export const computeLmsDiff = (
-    stored: LmsSnapshot,
-    fresh: LmsSnapshot
+  stored: LmsSnapshot,
+  fresh: LmsSnapshot,
 ): ObservedDiff<object>[] => [
-    ...diffCourseMap<Quiz>(stored.quizzes, fresh.quizzes, 'title', 'quiz'),
-    ...diffCourseMap<Assignment>(stored.assignments, fresh.assignments, 'title', 'assignment'),
-    ...diffCourseMap<GDB>(stored.gdb, fresh.gdb, 'question', 'gdb'),
-    ...diffChallans(stored.accounts, fresh.accounts),
+  ...diffCourseMap<Quiz>(stored.quizzes, fresh.quizzes, "quiz"),
+  ...diffCourseMap<Assignment>(
+    stored.assignments,
+    fresh.assignments,
+    "assignment",
+  ),
+  ...diffCourseMap<GDB>(stored.gdb, fresh.gdb, "gdb"),
+  ...diffChallans(stored.accounts, fresh.accounts),
 ];
 
 // ─── Main Observer Engine (with Storage Side-Effects) ─────────────────────────
@@ -135,56 +244,58 @@ export const computeLmsDiff = (
  *                       dispatch or API forwarding.
  */
 export const observeLmsData = async (
-    freshSnapshot: LmsSnapshot
+  freshSnapshot: LmsSnapshot,
 ): Promise<ObserverResult> => {
+  // Step 1 — Read stored baseline
+  const storedSnapshot = await storage.getItem<LmsSnapshot>(LMS_DATA_KEY);
 
-    // Step 1 — Read stored baseline
-    const storedSnapshot = await storage.getItem<LmsSnapshot>(LMS_DATA_KEY);
-
-    // Step 2 — Cold Start: no baseline exists yet
-    if (!storedSnapshot) {
-        console.log('[Observer Engine] Cold start — saving initial baseline.');
-        await storage.setItem(LMS_DATA_KEY, freshSnapshot);
-
-        return {
-            status: 'INITIALIZED',
-            message: 'Initial storage baseline set.',
-            differences: [],
-        } satisfies ObserverInitialized;
-    }
-
-    // Step 3 — Compare fresh data against stored baseline
-    console.log('[Observer Engine] Comparing fresh snapshot against stored baseline...');
-    const differences = computeLmsDiff(storedSnapshot, freshSnapshot);
-
-    // Step 4 — Always update the baseline after comparison
+  // Step 2 — Cold Start: no baseline exists yet
+  if (!storedSnapshot) {
+    console.log("[Observer Engine] Cold start — saving initial baseline.");
     await storage.setItem(LMS_DATA_KEY, freshSnapshot);
-    console.log('[Observer Engine] Baseline updated in storage.');
-
-    // Step 5 — Return structured result
-    if (differences.length === 0) {
-        console.log('[Observer Engine] No changes detected.');
-        return {
-            status: 'NO_DIFFERENCE',
-            message: 'No new changes detected.',
-        } satisfies ObserverNoDifference;
-    }
-
-    console.log(`[Observer Engine] ${differences.length} change(s) detected.`);
-    differences.forEach(({ eventType, category, courseCode, details }) => {
-        const course = courseCode ? `[${courseCode}] ` : '';
-        // Surface a human-readable label from the details object
-        const label =
-            (details as Record<string, unknown>)['title']
-            ?? (details as Record<string, unknown>)['question']
-            ?? (details as Record<string, unknown>)['challanNo']
-            ?? JSON.stringify(details);
-        console.log(`  → ${eventType}: ${course}${category} — "${label}"`);
-    });
 
     return {
-        status: 'CHANGES_DETECTED',
-        timestamp: Date.now(),
-        differences,
-    } satisfies ObserverChangesDetected;
+      status: "INITIALIZED",
+      message: "Initial storage baseline set.",
+      differences: [],
+    } satisfies ObserverInitialized;
+  }
+
+  // Step 3 — Compare fresh data against stored baseline
+  console.log(
+    "[Observer Engine] Comparing fresh snapshot against stored baseline...",
+  );
+  const allDifferences = computeLmsDiff(storedSnapshot, freshSnapshot);
+
+  // Step 4 — Always update the baseline after comparison
+  await storage.setItem(LMS_DATA_KEY, freshSnapshot);
+  console.log("[Observer Engine] Baseline updated in storage.");
+
+  // Step 5 — Return structured result
+  if (allDifferences.length === 0) {
+    console.log("[Observer Engine] No changes detected.");
+    return {
+      status: "NO_DIFFERENCE",
+      message: "All items are identical. No state change detected.",
+      differences: [],
+    } satisfies ObserverNoDifference;
+  }
+
+  console.log(`[Observer Engine] ${allDifferences.length} change(s) detected.`);
+  allDifferences.forEach(({ eventType, category, courseCode, details }) => {
+    const course = courseCode ? `[${courseCode}] ` : "";
+    // Surface a human-readable label from the details object
+    const label =
+      (details as Record<string, unknown>)["title"] ??
+      (details as Record<string, unknown>)["question"] ??
+      (details as Record<string, unknown>)["challanNo"] ??
+      JSON.stringify(details);
+    console.log(`  → ${eventType}: ${course}${category} — "${label}"`);
+  });
+
+  return {
+    status: "CHANGES_DETECTED",
+    timestamp: Date.now(),
+    differences: allDifferences,
+  } satisfies ObserverChangesDetected;
 };

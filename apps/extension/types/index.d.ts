@@ -1,6 +1,7 @@
 declare global {
-
     interface Assignment {
+        id: string;
+        assignmentId?: string;
         srNo: string;
         title: string;
         dueDate: string;
@@ -32,23 +33,27 @@ declare global {
     }
 
     interface Quiz {
+        id: string;
+        quizId?: string;
         srNo: string;
         title: string;
         startDate: string;
         dueDate: string;
         totalMarks: string;
-        isOpen: boolean
+        isOpen: boolean;
         status: string;
         score: string;
     }
 
     interface GDB {
+        id: string;
+        gdbId?: string;
         srNo: string;
         question: string;
         startDate: string;
         dueDate: string;
         totalMarks: string;
-        isOpen: boolean
+        isOpen: boolean;
         status: string;
         score: string;
         viewURL: string;
@@ -71,8 +76,8 @@ declare global {
     }
 
     interface DataChangeEvent<T = any> {
-        eventType: 'ADDED' | 'UPDATED' | 'REMOVED';
-        category: 'quiz' | 'assignment' | 'gdb' | 'activity' | 'fee';
+        eventType: "ADDED" | "UPDATED" | "REMOVED";
+        category: "quiz" | "assignment" | "gdb" | "activity" | "fee";
         courseCode?: string;
         data: T;
         timestamp: number;
@@ -101,28 +106,29 @@ declare global {
 
     /** A single detected difference emitted by the Observer Engine. */
     interface ObservedDiff<T = object> {
-        category: 'quiz' | 'assignment' | 'gdb' | 'fee';
-        eventType: 'ADDED' | 'UPDATED' | 'REMOVED';
+        category: "quiz" | "assignment" | "gdb" | "fee";
+        eventType: "ADDED" | "UPDATED" | "REMOVED";
         courseCode?: string;
         details: T;
     }
 
     /** Returned when storage was empty — baseline has been set for the first time. */
     interface ObserverInitialized {
-        status: 'INITIALIZED';
+        status: "INITIALIZED";
         message: string;
         differences: [];
     }
 
     /** Returned when fresh data matches the stored baseline exactly. */
     interface ObserverNoDifference {
-        status: 'NO_DIFFERENCE';
+        status: "NO_DIFFERENCE";
         message: string;
+        differences: [];
     }
 
     /** Returned when at least one change is detected. */
     interface ObserverChangesDetected {
-        status: 'CHANGES_DETECTED';
+        status: "CHANGES_DETECTED";
         timestamp: number;
         differences: ObservedDiff<object>[];
     }
@@ -132,6 +138,39 @@ declare global {
         | ObserverInitialized
         | ObserverNoDifference
         | ObserverChangesDetected;
+
+    type ItemType = "quiz" | "assignment" | "gdb" | "fee";
+
+    interface TrackedNotificationItem {
+        id: string;
+        type: ItemType;
+        title: string;
+        subjectCode?: string;
+        dueDate: number;
+
+        // Specific Status
+        isOpen?: boolean;
+        isCompleted: boolean;
+
+        // Notification Tracker State
+        stage: number;
+        notifyCount: number;
+        lastNotifiedAt: number | null;
+        cooldownUntil: number | null;
+    }
+
+    interface ServerNotificationPayload {
+        itemId: string;
+        type: ItemType;
+        title: string;
+        subjectCode?: string;
+        urgency: 'INFO' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+        stage: number;
+        message: string;
+        hoursLeft: number;
+        dueDate: number;
+        dispatchedAt: number;
+    }
 }
 
-export { }
+export { };
