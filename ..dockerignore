@@ -1,0 +1,45 @@
+# Git & Version Control
+.git/
+.gitignore
+.github/
+
+# Monorepo Package Managers & Caches
+.pnpm-store/
+node_modules/
+**/node_modules/
+.npm/
+.yarn/
+.turbo/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Next.js (Web)
+apps/web/.next/
+apps/web/out/
+apps/web/build/
+
+# TypeScript Extension
+apps/extension/dist/
+apps/extension/build/
+*.tsbuildinfo
+
+# FastAPI Server (Python)
+**/__pycache__/
+*.py[cod]
+*$py.class
+apps/server/.venv/
+apps/server/venv/
+apps/server/*.db
+apps/server/*.sqlite3
+
+# Logs & Temporary Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+.tmp/
