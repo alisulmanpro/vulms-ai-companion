@@ -1,0 +1,42 @@
+# Byte-compiled / Python internal files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+*.venv
+
+# PyCharm / JetBrains IDE settings
+.idea/
+.idea_modules/
+*.iml
+*.iws
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# FastAPI / Database / Local storage
+*.db
+*.sqlite3
+*.log
+uploads/
+storage/
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
