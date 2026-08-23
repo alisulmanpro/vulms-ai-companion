@@ -3,12 +3,10 @@ import LMSProcessSync from "@/features/lms-fetcher/lmsFetcher";
 export default defineContentScript({
   matches: ["https://*.vu.edu.pk/*"],
   async main() {
-    console.log("Hello content.");
 
-    // Page load par initial fetch
     await LMSProcessSync();
 
-    // Background Alarm ya Force Refresh se trigger hone par fetch
+    // Background Alarm or Force Refresh
     browser.runtime.onMessage.addListener((message) => {
       if (message.action === "TRIGGER_LMS_FETCH") {
         console.log(

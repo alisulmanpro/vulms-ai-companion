@@ -15,10 +15,7 @@ const LMSProcessSync = async () => {
     return;
   }
 
-  console.log("[LMS Fetcher] Cooldown passed. Executing parsers...");
-
   try {
-    // Individual fallbacks for each module
     let assignments = {};
     let quizzes = {};
     let gdb = {};
