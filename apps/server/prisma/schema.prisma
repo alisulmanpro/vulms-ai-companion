@@ -1,0 +1,32 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider  = "prisma-client-py"
+  interface = "asyncio"
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model Notification {
+  id             String             @id @default(uuid())
+  phoneNumber    String             @map("phone_number")
+  messageBody    String             @map("message_body")
+  status         NotificationStatus @default(PENDING)
+  evolutionMsgId String?            @map("evolution_msg_id")
+  retryCount     Int                @default(0) @map("retry_count")
+  errorReason    String?            @map("error_reason")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  sentAt         DateTime?          @map("sent_at")
+
+  // Performance Indexing for fast status lookups
+  @@index([status, createdAt])
+  @@map("notifications")
+}

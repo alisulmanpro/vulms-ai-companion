@@ -1,0 +1,52 @@
+services:
+  evolution_api:
+    image: evoapicloud/evolution-api:latest
+    container_name: evolution_api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - DOCKER_ENV=true
+      - TZ=Asia/Karachi
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_API_KEY=@Docker_123
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://neondb_owner:npg_9AfrBpczt7UG@ep-flat-morning-azf3zw6x.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+      - CACHE_REDIS_ENABLED=false
+      - CACHE_REDIS_SAVE_INSTANCES=false
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG_OPERATIONS
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - vulms_network
+
+  vulms_gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vulms_gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://neondb_owner:npg_S8xWa4mIpPqk@ep-muddy-mode-azl5ahvm-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+      - EVOLUTION_API_URL=http://evolution_api:8080
+      - EVOLUTION_API_KEY=@Docker_123
+      - EVOLUTION_INSTANCE=vulms_bot
+    volumes:
+      - .:/app
+    depends_on:
+      evolution_api:
+        condition: service_started
+    networks:
+      - vulms_network
+
+networks:
+  vulms_network:
+    driver: bridge
+
+volumes:
+  evolution_instances:
+    driver: local
