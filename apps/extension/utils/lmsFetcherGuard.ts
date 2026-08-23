@@ -13,7 +13,6 @@ export const canRunLmsFetcher = async (
 
   const timePassed = Date.now() - lastFetchTime;
 
-  // 3 seconds Grace Buffer taake 59.8s par bhi condition match ho jaye
   const COOLDOWN_MS = cooldownMinutes * 60 * 1000 - 3000;
 
   return timePassed >= COOLDOWN_MS;

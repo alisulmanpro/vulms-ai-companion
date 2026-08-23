@@ -1,18 +1,25 @@
-#docker run -d -p 8000:8000 --name vulms-app vulms-fastapi-server Lightweight Python image
 FROM python:3.11-slim
 
-# Working directory set
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    ca-certificates \
+    libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# System dependencies and requirements installation
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# application code copy
+COPY prisma ./prisma
+RUN prisma generate
+
 COPY . .
 
-# FastAPI port expose
 EXPOSE 8000
 
-# Server run command
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Notice app.main:app entrypoint for uvicorn
+CMD ["sh", "-c", "prisma db push --accept-data-loss && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
