@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "fastapi[standard]>=0.141.1",
     "httpx>=0.28.1",
+    "lxml>=6.1.2",
+    "playwright>=1.62.0",
     "prisma>=0.15.0",
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
