@@ -101,18 +101,24 @@ model Verification {
 }
 
 model VulmsAccount {
-  id                String    @id @default(cuid())
-  userId            String
-  studentId         String
-  password          String
-  aspSessionId      String?
-  isBrowserOpen     Boolean   @default(false)
-  lastSyncedAt      DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId           String
+  encryptedPassword   String
 
-  @@index([userId])
-  @@map("vulms_account")
+  isActive            Boolean  @default(true)
+  aspSessionId        String
+
+  lastAssignmentHash  String?
+  lastQuizHash        String?
+  lastGdbHash         String?
+  lastPolledAt        DateTime?
+  lastAuthFailedAt    DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([isActive])
 }

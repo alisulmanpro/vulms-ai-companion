@@ -5,6 +5,7 @@ from app.services.vulms_watcher.parse_account import parse_account_summary
 from app.services.vulms_watcher.parse_quizes import parse_active_quizzes
 from app.services.vulms_watcher.parser_gdb import parse_active_gdbs
 from app.services.vulms_watcher.vulms_auto_login import async_playwright_login
+from prisma.models import VulmsAccount
 
 
 class ParseDataEngine:
@@ -19,13 +20,13 @@ class ParseDataEngine:
         Fetch stored cookies and credentials from DB table 'vulms_account'.
         """
 
-        account = await self.db.vulmsaccount.find_first(where={"studentId": student_id})
+        account: VulmsAccount = await self.db.vulmsaccount.find_first(where={"studentId": student_id})
         if not account:
             return None
 
         return {
             "student_id": account.studentId,
-            "password": account.password,
+            "password": account.encryptedPassword,
             "asp_session_id": account.aspSessionId or "",
         }
 

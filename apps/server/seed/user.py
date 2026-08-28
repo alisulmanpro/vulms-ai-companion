@@ -18,9 +18,9 @@ async def main():
             "vulmsAccounts": {
                 "create": {
                     "studentId": "bc240431077",
-                    "password": "!r!3[qP::rwe2",
+                    "encryptedPassword": "!r!3[qP::rwe2",
                     "aspSessionId": "",
-                    "isBrowserOpen": False,
+                    "isActive": False,
                 }
             },
         }
@@ -37,9 +37,9 @@ async def main():
             "vulmsAccounts": {
                 "create": {
                     "studentId": "bc260220874",
-                    "password": "Asdf12345!",
+                    "encryptedPassword": "Asdf12345!",
                     "aspSessionId": "asp_session_mohsin_456",
-                    "isBrowserOpen": True,
+                    "isActive": True,
                 }
             },
         }
