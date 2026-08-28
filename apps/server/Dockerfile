@@ -35,4 +35,4 @@ COPY . .
 EXPOSE 8000
 
 # 6. Entrypoint
-CMD ["sh", "-c", "python -m prisma db push --accept-data-loss && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]

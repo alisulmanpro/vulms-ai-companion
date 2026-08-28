@@ -32,7 +32,7 @@ services:
       - "8000:8000"
 
     environment:
-      - DATABASE_URL=postgresql://neondb_owner:npg_S8xWa4mIpPqk@ep-muddy-mode-azl5ahvm-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+      - DATABASE_URL=${DATABASE_URL}
       - EVOLUTION_API_URL=http://evolution_api:8080
       - EVOLUTION_API_KEY=@Docker_123
       - EVOLUTION_INSTANCE=vulms_bot
