@@ -64,7 +64,7 @@ async def parse_active_gdbs(asp_session_id: str) -> Dict[str, List[GDBItem]]:
         "Content-Type": "application/x-www-form-urlencoded"
     }
 
-    async with httpx.AsyncClient(cookies=cookies, headers=headers, timeout=20.0) as client:
+    async with httpx.AsyncClient(cookies=cookies, headers=headers, follow_redirects=True, timeout=20.0) as client:
         # Step 1: Scan Home Page
         home_res = await client.get(HOME_URL)
         if home_res.status_code != 200:
