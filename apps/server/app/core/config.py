@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     EVOLUTION_INSTANCE: str
     MAX_RETRIES: int = 3
     DATABASE_URL: str
+    VULMS_ENCRYPTION_KEY: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
