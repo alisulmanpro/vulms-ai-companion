@@ -1,4 +1,6 @@
 import Image, { type ImageProps } from "next/image";
+import Link from "next/link";
+import { auth } from "../auth";
 import styles from "./page.module.css";
 
 type Props = Omit<ImageProps, "src"> & {
@@ -17,9 +19,62 @@ const ThemeImage = (props: Props) => {
   );
 };
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+
   return (
     <div className={styles.page}>
+      <header
+        style={{
+          width: "100%",
+          maxWidth: "800px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "1rem 0",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: "1rem" }}>VULMS AI Companion</span>
+        <div>
+          {session?.user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>
+                {session.user.name ?? session.user.email}
+              </span>
+              <Link
+                href="/dashboard"
+                style={{
+                  padding: "0.4rem 0.875rem",
+                  borderRadius: "6px",
+                  backgroundColor: "#27272a",
+                  color: "#fff",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                  border: "1px solid #3f3f46",
+                }}
+              >
+                Dashboard
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                padding: "0.4rem 0.875rem",
+                borderRadius: "6px",
+                backgroundColor: "#fafafa",
+                color: "#09090b",
+                fontSize: "0.875rem",
+                fontWeight: 600,
+              }}
+            >
+              Sign In
+            </Link>
+          )}
+        </div>
+      </header>
+
       <main className={styles.main}>
         <ThemeImage
           className={styles.logo}
@@ -38,21 +93,15 @@ export default function Home() {
         </ol>
 
         <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
+          {session?.user ? (
+            <Link className={styles.primary} href="/dashboard">
+              Go to Dashboard
+            </Link>
+          ) : (
+            <Link className={styles.primary} href="/login">
+              Sign In with Google
+            </Link>
+          )}
           <a
             href="https://turborepo.dev/docs?utm_source"
             target="_blank"
