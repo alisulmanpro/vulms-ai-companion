@@ -1,0 +1,31 @@
+.stage {
+  position: relative;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  will-change: transform, opacity;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.55),
+    0 0 80px rgba(157, 0, 255, 0.12);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 800 / 600;
+}
+
+@media (max-width: 768px) {
+  .stage {
+    border-radius: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

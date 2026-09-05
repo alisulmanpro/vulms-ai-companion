@@ -1,0 +1,142 @@
+.section {
+  padding: clamp(3rem, 6vw, 5rem) clamp(1.25rem, 4vw, 2rem);
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.showcase {
+  position: relative;
+  border-radius: 1.25rem;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(129, 140, 248, 0.5),
+    rgba(168, 85, 247, 0.2) 50%,
+    rgba(236, 72, 153, 0.35)
+  );
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.5),
+    0 0 60px rgba(157, 0, 255, 0.12);
+  transition: transform 0.35s ease;
+}
+
+.showcase:hover {
+  transform: translateY(-6px);
+}
+
+.glowBorder {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, rgba(157, 0, 255, 0.12), transparent 60%);
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  border-radius: 1.2rem;
+  overflow: hidden;
+  background: rgba(8, 8, 14, 0.96);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.title {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 0.8fr;
+  gap: 1rem;
+  padding: 1.25rem;
+  min-height: 240px;
+}
+
+.panel,
+.panelHighlight {
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.panelHighlight {
+  background: linear-gradient(160deg, rgba(157, 0, 255, 0.12), rgba(255, 0, 187, 0.06));
+  border-color: rgba(129, 140, 248, 0.25);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.panelLineWide,
+.panelLine,
+.panelLineShort {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 0.55rem;
+}
+
+.panelLineWide {
+  width: 80%;
+  height: 12px;
+}
+
+.panelLineShort {
+  width: 55%;
+}
+
+.highlightLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.85);
+}
+
+.highlightValue {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.highlightMeta {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+
+  .showcase:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase:hover {
+    transform: none;
+  }
+}

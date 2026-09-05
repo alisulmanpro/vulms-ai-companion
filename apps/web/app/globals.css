@@ -1,13 +1,27 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a;
+  --foreground: #e8e8ec;
+  --muted: rgba(184, 176, 196, 0.72);
+  --surface: rgba(36, 36, 36, 0.45);
+  --surface-border: rgba(157, 0, 255, 0.14);
+  --accent-violet: #9d00ff;
+  --accent-magenta: #ff00bb;
+  --accent-indigo: #2b0054;
+  --accent-blue: #695c7d;
+  --accent-purple-deep: #0f021a;
+  --accent-charcoal: #242424;
+  --glow-violet: rgba(157, 0, 255, 0.45);
+  --glow-magenta: rgba(255, 0, 187, 0.35);
+  --hero-glow: radial-gradient(
+    ellipse 80% 60% at 50% 40%,
+    rgba(36, 36, 36, 0.9) 0%,
+    rgba(157, 0, 255, 0.08) 40%,
+    rgba(10, 10, 10, 0) 72%
+  );
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -19,6 +33,9 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -32,19 +49,13 @@ a {
   text-decoration: none;
 }
 
-.imgDark {
-  display: none;
+:focus-visible {
+  outline: 2px solid var(--accent-violet);
+  outline-offset: 3px;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-reduced-motion: reduce) {
   html {
-    color-scheme: dark;
-  }
-
-  .imgLight {
-    display: none;
-  }
-  .imgDark {
-    display: unset;
+    scroll-behavior: auto;
   }
 }
