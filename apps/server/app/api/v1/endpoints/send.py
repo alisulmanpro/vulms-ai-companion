@@ -1,10 +1,12 @@
+import logging
+from typing import List
 from fastapi import APIRouter, HTTPException, status
 from app.core.db import db
-from app.schemas.notification import NotificationCreateSchema, BulkNotificationSchema
-from app.schemas.notification import sanitize_phone_number
-from typing import List
+from app.schemas.notification import NotificationCreateSchema, BulkNotificationSchema, sanitize_phone_number
 
-router = APIRouter(prefix="/notification")
+logger = logging.getLogger("VULMS_NotificationAPI")
+
+router = APIRouter(prefix="/notification", tags=["Notifications"])
 
 
 @router.post("/send", status_code=status.HTTP_201_CREATED)
@@ -31,6 +33,7 @@ async def create_single_notification(payload: NotificationCreateSchema):
             }
         }
     except Exception as e:
+        logger.error(f"Failed to queue notification: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to queue notification: {str(e)}"
@@ -40,24 +43,27 @@ async def create_single_notification(payload: NotificationCreateSchema):
 @router.post("/send-bulk", status_code=status.HTTP_201_CREATED)
 async def create_bulk_notifications(payload: BulkNotificationSchema):
     """
-    Ingest multiple notifications for broadcast broadcasts.
+    Ingest multiple notifications for broadcast.
     """
     created_records = []
     for raw_phone in payload.phoneNumbers:
         try:
             clean_phone = sanitize_phone_number(raw_phone)
-            created_records.append({
-                "phoneNumber": clean_phone,
-                "messageBody": payload.messageBody,
-                "status": "PENDING"
-            })
+            if clean_phone:
+                created_records.append({
+                    "phoneNumber": clean_phone,
+                    "messageBody": payload.messageBody,
+                    "status": "PENDING"
+                })
         except Exception:
             continue
 
     if not created_records:
-        raise HTTPException(status_code=400, detail="No valid phone numbers provided")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid phone numbers provided"
+        )
 
-    # Bulk create in Prisma
     await db.notification.create_many(data=created_records)
 
     return {
@@ -69,8 +75,7 @@ async def create_bulk_notifications(payload: BulkNotificationSchema):
 @router.post("/send-batch", status_code=status.HTTP_201_CREATED)
 async def create_batch_notifications(payload: List[NotificationCreateSchema]):
     """
-    Ingest multiple distinct notifications with unique messages/numbers.
-    Accepts: [{ "phoneNumber": "...", "messageBody": "..." }, ...]
+    Ingest multiple distinct notifications with unique messages and numbers.
     """
     created_records = []
 
@@ -92,7 +97,6 @@ async def create_batch_notifications(payload: List[NotificationCreateSchema]):
             detail="No valid notifications provided"
         )
 
-    # Prisma Bulk Insert
     await db.notification.create_many(data=created_records)
 
     return {

@@ -1,4 +1,15 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: vulms_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - vulms_network
+
   evolution_api:
     image: evoapicloud/evolution-api:latest
     container_name: evolution_api
@@ -10,15 +21,17 @@ services:
       - DOCKER_ENV=true
       - TZ=Asia/Karachi
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=@Docker_123
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-@Docker_123}
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://neondb_owner:npg_9AfrBpczt7UG@ep-flat-morning-azf3zw6x.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-      - CACHE_REDIS_ENABLED=false
-      - CACHE_REDIS_SAVE_INSTANCES=false
-      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG_OPERATIONS
+      - DATABASE_CONNECTION_URI=${DATABASE_URL}
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - LOG_LEVEL=ERROR,WARN,INFO
     volumes:
       - evolution_instances:/evolution/instances
+    depends_on:
+      - redis
     networks:
       - vulms_network
 
@@ -30,21 +43,23 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/0
       - EVOLUTION_API_URL=http://evolution_api:8080
-      - EVOLUTION_API_KEY=@Docker_123
-      - EVOLUTION_INSTANCE=vulms_bot
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-@Docker_123}
+      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE:-vulms_bot}
+      - VULMS_ENCRYPTION_KEY=${VULMS_ENCRYPTION_KEY}
+      - LOG_LEVEL=INFO
+      - APP_CACHE_DIR=/tmp/vulms_cache
     volumes:
       - .:/app
-      - /app/.venv
     depends_on:
-      evolution_api:
-        condition: service_started
+      - redis
+      - evolution_api
     networks:
       - vulms_network
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
 networks:
   vulms_network:
@@ -52,4 +67,6 @@ networks:
 
 volumes:
   evolution_instances:
+    driver: local
+  redis_data:
     driver: local

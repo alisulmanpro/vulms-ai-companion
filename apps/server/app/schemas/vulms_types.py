@@ -91,3 +91,15 @@ class AccountSummaryResponse(BaseModel):
     total_unpaid_challans: int
     challans_list: List[ChallanItem]
     page_url: str
+
+
+class ActiveStatusPayload(BaseModel):
+    student_id: str = Field(..., example="bc240431077")
+    is_active: bool = Field(True, description="True if user browser/extension is active; False if closed.")
+
+
+class ActiveStatusResponse(BaseModel):
+    success: bool
+    message: str
+    is_active: bool
+
