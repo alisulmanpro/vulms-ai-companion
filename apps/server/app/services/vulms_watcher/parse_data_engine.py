@@ -1,25 +1,27 @@
 import time
+import asyncio
+import logging
 from typing import Any, Dict, Optional
 from app.services.vulms_watcher.parse_assignments import parse_active_assignments
 from app.services.vulms_watcher.parse_account import parse_account_summary
 from app.services.vulms_watcher.parse_quizes import parse_active_quizzes
 from app.services.vulms_watcher.parser_gdb import parse_active_gdbs
 from app.services.vulms_watcher.vulms_auto_login import async_playwright_login
+from app.core.cache import cache_manager
 from prisma.models import VulmsAccount
+
+logger = logging.getLogger("VULMS_ParseEngine")
 
 
 class ParseDataEngine:
     def __init__(self, db_client: Any):
         """
-        :param db_client: Your database instance or session (Prisma / SQLAlchemy)
+        :param db_client: Prisma client instance
         """
         self.db = db_client
 
     async def get_db_user_credentials(self, student_id: str) -> Optional[Dict[str, str]]:
-        """
-        Fetch stored cookies and credentials from DB table 'vulms_account'.
-        """
-
+        """Fetch stored session and credentials from database."""
         account: VulmsAccount = await self.db.vulmsaccount.find_first(where={"studentId": student_id})
         if not account:
             return None
@@ -31,37 +33,28 @@ class ParseDataEngine:
         }
 
     async def update_db_cookies(self, student_id: str, asp_session_id: str) -> None:
-        """
-        Update fresh cookies in the database after successful auto-login.
-        """
+        """Update fresh cookies in database after successful auto-login."""
         await self.db.vulmsaccount.update_many(
             where={"studentId": student_id},
             data={"aspSessionId": asp_session_id}
         )
-        print(f"[Engine] Updated DB cookies for {student_id}")
+        logger.info(f"Updated DB session cookies for {student_id}")
 
     async def _run_all_parsers(self, asp_session_id: str) -> Dict[str, Any]:
         """
-        Executes all 4 scrapers concurrently using asyncio.gather.
+        Executes all 4 scrapers concurrently using asyncio.gather for speed.
         """
-        # Step 1: Parse Active Assignments
-        assignments_res = await parse_active_assignments(
-            asp_session_id=asp_session_id,
-        )
+        assignments_task = parse_active_assignments(asp_session_id=asp_session_id)
+        quizzes_task = parse_active_quizzes(asp_session_id=asp_session_id)
+        gdbs_task = parse_active_gdbs(asp_session_id=asp_session_id)
+        account_task = parse_account_summary(asp_session_id=asp_session_id)
 
-        # Step 2: Parse Active Quizzes
-        quizzes_res = await parse_active_quizzes(
-            asp_session_id=asp_session_id,
-        )
-
-        # Step 3: Parse Active GDBs
-        gdbs_res = await parse_active_gdbs(
-            asp_session_id=asp_session_id,
-        )
-
-        # Step 4: Parse Account Summary (Single GET, no course switching)
-        account_res = await parse_account_summary(
-            asp_session_id=asp_session_id,
+        assignments_res, quizzes_res, gdbs_res, account_res = await asyncio.gather(
+            assignments_task,
+            quizzes_task,
+            gdbs_task,
+            account_task,
+            return_exceptions=False
         )
 
         return {
@@ -71,19 +64,28 @@ class ParseDataEngine:
             "account": account_res
         }
 
-    async def run(self, student_id: str) -> Dict[str, Any]:
+    async def run(self, student_id: str, use_cache: bool = True) -> Dict[str, Any]:
         """
-        Main Engine Method: Tracks execution time, validates sessions,
-        handles auto-login fallback, and builds output JSON.
+        Main Engine Method: Speed optimized with caching, concurrent execution,
+        and auto-login fallback.
         """
         start_time = time.perf_counter()
+        cache_key = f"vulms_parsed_payload:{student_id}"
+
+        # Step 0: Check L1/L2 Cache for speed optimization
+        if use_cache:
+            cached_payload = cache_manager.get(cache_key)
+            if cached_payload:
+                logger.info(f"Returning cached VULMS payload for student {student_id}")
+                cached_payload["from_cache"] = True
+                return cached_payload
 
         # Step 1: Fetch stored record from Database
         user_record = await self.get_db_user_credentials(student_id)
         if not user_record:
             return {
                 "success": False,
-                "error": "User record not found in database",
+                "error": f"User record for student '{student_id}' not found in database.",
                 "execution_time_seconds": round(time.perf_counter() - start_time, 3)
             }
 
@@ -97,12 +99,16 @@ class ParseDataEngine:
             try:
                 parsed_data = await self._run_all_parsers(asp_session_id)
             except Exception as e:
-                print(f"[Engine] Existing session expired/failed ({str(e)}). Retrying with auto-login...")
+                logger.warning(f"Existing session expired for {student_id} ({str(e)}). Retrying auto-login...")
                 parsed_data = None
 
         # Step 3: Auto-login fallback if cookies missing or parsing failed
         if parsed_data is None:
-            login_result = await async_playwright_login(student_id=student_id, password=password)
+            # Note: Decrypt password before login
+            from app.core.security import vault
+            raw_password = vault.decrypt(password) if password else ""
+
+            login_result = await async_playwright_login(student_id=student_id, password=raw_password)
 
             if not login_result.get("success"):
                 execution_time = round(time.perf_counter() - start_time, 3)
@@ -113,11 +119,8 @@ class ParseDataEngine:
                 }
 
             asp_session_id = login_result.get("asp_session_id")
-
-            # Update fresh session cookies in Database
             await self.update_db_cookies(student_id, asp_session_id)
 
-            # Re-run parsers with fresh cookies
             try:
                 parsed_data = await self._run_all_parsers(asp_session_id)
             except Exception as e:
@@ -128,7 +131,7 @@ class ParseDataEngine:
                     "execution_time_seconds": execution_time
                 }
 
-        # Step 4: Calculate total active items count across all categories
+        # Step 4: Calculate items summary
         assignments_map = parsed_data.get("assignments", {})
         quizzes_map = parsed_data.get("quizzes", {})
         gdbs_map = parsed_data.get("gdbs", {})
@@ -142,40 +145,36 @@ class ParseDataEngine:
         total_active_items = total_assignments + total_quizzes + total_gdbs + total_unpaid_challans
         execution_time = round(time.perf_counter() - start_time, 3)
 
-        # Step 5: If total items across all parsers is 0, return {}
-        if total_active_items == 0:
-            return {
-                "success": True,
-                "execution_time_seconds": execution_time,
-                "data": {}
-            }
-
-        # Step 6: Construct response dictionary containing only categories with items > 0
         response_payload = {}
-
         if total_assignments > 0:
             response_payload["assignments"] = {
                 "total": total_assignments,
-                "items": {k: v for k, v in assignments_map.items() if len(v) > 0}
+                "items": {k: [item.dict() if hasattr(item, "dict") else item for item in v] for k, v in assignments_map.items() if len(v) > 0}
             }
 
         if total_quizzes > 0:
             response_payload["quizzes"] = {
                 "total": total_quizzes,
-                "items": {k: v for k, v in quizzes_map.items() if len(v) > 0}
+                "items": {k: [item.dict() if hasattr(item, "dict") else item for item in v] for k, v in quizzes_map.items() if len(v) > 0}
             }
 
         if total_gdbs > 0:
             response_payload["gdbs"] = {
                 "total": total_gdbs,
-                "items": {k: v for k, v in gdbs_map.items() if len(v) > 0}
+                "items": {k: [item.dict() if hasattr(item, "dict") else item for item in v] for k, v in gdbs_map.items() if len(v) > 0}
             }
 
         if total_unpaid_challans > 0 and account_summary:
-            response_payload["account"] = account_summary.dict()
+            response_payload["account"] = account_summary.dict() if hasattr(account_summary, "dict") else account_summary
 
-        return {
+        final_result = {
             "success": True,
             "execution_time_seconds": execution_time,
-            "data": response_payload
+            "total_active_items": total_active_items,
+            "data": response_payload,
+            "from_cache": False
         }
+
+        # Cache payload for 10 minutes (600s)
+        cache_manager.set(cache_key, final_result, expire_seconds=600)
+        return final_result

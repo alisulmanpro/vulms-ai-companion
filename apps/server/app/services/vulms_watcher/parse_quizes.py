@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
@@ -5,13 +6,15 @@ import httpx
 
 from app.schemas.vulms_types import QuizItem
 
+logger = logging.getLogger("VULMS_Quizzes")
+
 BASE_URL = "https://vulms.vu.edu.pk"
 HOME_URL = f"{BASE_URL}/Home.aspx"
 QUIZ_LIST_URL = f"{BASE_URL}/Quiz/QuizList.aspx"
 
 
 def parse_date(date_str: str) -> Optional[datetime.date]:
-    """Parses VU LMS date formats such as 'Apr 30, 2026' or '30-Apr-2026'."""
+    """Parses VU LMS date formats into date objects."""
     if not date_str:
         return None
 
@@ -55,19 +58,28 @@ def is_quiz_active(is_open: bool, status: str, due_date_str: str) -> bool:
 
 
 async def parse_active_quizzes(asp_session_id: str) -> Dict[str, List[QuizItem]]:
+    """
+    Parses active quizzes per course for a student session.
+    Handles ASP.NET WebForms 302 redirects gracefully on postbacks.
+    """
     cookies = {
         "ASP.NET_SessionId": asp_session_id,
     }
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)",
         "Content-Type": "application/x-www-form-urlencoded"
     }
 
-    async with httpx.AsyncClient(cookies=cookies, headers=headers, follow_redirects=True, timeout=20.0) as client:
+    async with httpx.AsyncClient(
+        cookies=cookies,
+        headers=headers,
+        follow_redirects=True,
+        timeout=20.0
+    ) as client:
         # Step 1: Scan Home Page for ViewState tokens & Courses
         home_res = await client.get(HOME_URL)
-        if home_res.status_code != 200:
+        if home_res.status_code not in (200, 302):
             raise Exception(f"Home page request failed with status {home_res.status_code}")
 
         soup = BeautifulSoup(home_res.text, "html.parser")
@@ -77,13 +89,12 @@ async def parse_active_quizzes(asp_session_id: str) -> Dict[str, List[QuizItem]]
         hf_course_el = soup.find("input", {"name": "ctl00$MainContent$hfCourseCode"})
 
         if not view_state_el:
-            raise Exception("Session expired or invalid cookies: __VIEWSTATE not found")
+            raise Exception("Session expired or invalid cookies: __VIEWSTATE not found on VULMS Home page.")
 
         view_state = view_state_el.get("value", "")
         vs_generator = vs_gen_el.get("value", "") if vs_gen_el else ""
         hf_course_code = hf_course_el.get("value", "") if hf_course_el else ""
 
-        # Find course buttons matching ibtnQuizzes
         buttons = soup.select('input[type="image"][id^="MainContent_gvCourseList_ibtnQuizzes_"]')
         courses = []
 
@@ -126,8 +137,10 @@ async def parse_active_quizzes(asp_session_id: str) -> Dict[str, List[QuizItem]]
             }
 
             post_res = await client.post(HOME_URL, data=payload)
-            post_soup = BeautifulSoup(post_res.text, "html.parser")
+            if post_res.status_code not in (200, 302):
+                logger.warning(f"Unexpected status {post_res.status_code} during quiz course switch for {code}")
 
+            post_soup = BeautifulSoup(post_res.text, "html.parser")
             new_vs = post_soup.find("input", {"name": "__VIEWSTATE"})
             new_vsg = post_soup.find("input", {"name": "__VIEWSTATEGENERATOR"})
             if new_vs and new_vs.get("value"):
@@ -137,6 +150,10 @@ async def parse_active_quizzes(asp_session_id: str) -> Dict[str, List[QuizItem]]
 
             # GET Quiz List Page
             list_res = await client.get(QUIZ_LIST_URL)
+            if list_res.status_code not in (200, 302):
+                logger.warning(f"Failed to fetch quiz list view for course {code}")
+                continue
+
             list_soup = BeautifulSoup(list_res.text, "html.parser")
 
             panels = list_soup.select('div[id^="MainContent_gvTileRepeaterQuiz_pnl_"]')

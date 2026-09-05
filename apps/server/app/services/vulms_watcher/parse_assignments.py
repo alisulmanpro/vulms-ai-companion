@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Optional, Dict, List
 from bs4 import BeautifulSoup
@@ -5,20 +6,18 @@ import httpx
 
 from app.schemas.vulms_types import AssignmentItem
 
+logger = logging.getLogger("VULMS_Assignments")
+
 BASE_URL = "https://vulms.vu.edu.pk"
 HOME_URL = f"{BASE_URL}/Home.aspx"
 LIST_VIEW_URL = f"{BASE_URL}/Assignments/StudentAssignmentListView.aspx"
 
 
 def parse_date(date_str: str) -> Optional[datetime.date]:
-    """
-    Parses date strings into date objects.
-    Supports formats like 'Apr 30, 2026', '25-Aug-2026', '2026-08-25'.
-    """
+    """Parses date strings into date objects."""
     if not date_str:
         return None
 
-    # %b %d, %Y handles 'Apr 30, 2026'
     date_formats = (
         "%b %d, %Y",
         "%B %d, %Y",
@@ -40,10 +39,11 @@ def parse_date(date_str: str) -> Optional[datetime.date]:
 def is_assignment_active(due_date_str: str, status: str) -> bool:
     """
     Filtering Rule:
-    1. Due Date must be today or in the future.
-    2. Status must NOT be 'Submitted'.
+    1. Status must NOT be 'Submitted'.
+    2. Due Date must be today or in the future.
     """
-    if "submitted" in status.lower() and "expired" in status.lower() and "not submitted" not in status.lower():
+    status_lower = status.lower().strip()
+    if "submitted" in status_lower and "not submitted" not in status_lower:
         return False
 
     parsed_date = parse_date(due_date_str)
@@ -54,20 +54,29 @@ def is_assignment_active(due_date_str: str, status: str) -> bool:
 
 
 async def parse_active_assignments(asp_session_id: str) -> Dict[str, List[AssignmentItem]]:
+    """
+    Parses active assignments per course for a student session.
+    Handles ASP.NET WebForms 302 redirects gracefully on postbacks.
+    """
     cookies = {
         "ASP.NET_SessionId": asp_session_id,
     }
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)",
         "Content-Type": "application/x-www-form-urlencoded"
     }
 
-    async with httpx.AsyncClient(cookies=cookies, headers=headers, follow_redirects=True, timeout=20.0) as client:
+    async with httpx.AsyncClient(
+        cookies=cookies,
+        headers=headers,
+        follow_redirects=True,
+        timeout=20.0
+    ) as client:
         # Step 1: Fetch Home Page and extract tokens & courses
         home_res = await client.get(HOME_URL)
-        if home_res.status_code != 200:
-            raise Exception(f"Home page request failed with status {home_res.status_code}")
+        if home_res.status_code not in (200, 302):
+            raise Exception(f"Home page request failed with HTTP status {home_res.status_code}")
 
         soup = BeautifulSoup(home_res.text, "html.parser")
 
@@ -76,13 +85,12 @@ async def parse_active_assignments(asp_session_id: str) -> Dict[str, List[Assign
         hf_course_el = soup.find("input", {"name": "ctl00$MainContent$hfCourseCode"})
 
         if not view_state_el:
-            raise Exception("Session expired or invalid cookies: __VIEWSTATE not found")
+            raise Exception("Session expired or invalid cookies: __VIEWSTATE not found on VULMS Home page.")
 
         view_state = view_state_el.get("value", "")
         vs_generator = vs_gen_el.get("value", "") if vs_gen_el else ""
         hf_course_code = hf_course_el.get("value", "") if hf_course_el else ""
 
-        # Extract courses matching assignment buttons[cite: 1]
         buttons = soup.select('input[type="image"][id^="MainContent_gvCourseList_ibtnAssignments_"]')
         courses = []
 
@@ -124,11 +132,12 @@ async def parse_active_assignments(asp_session_id: str) -> Dict[str, List[Assign
                 f"ctl00$MainContent$gvCourseList${ctl_id}$ibtnAssignments.y": "13",
             }
 
-            # POST to set active course session[cite: 1]
+            # POST postback to switch active course context (302 redirect is expected & followed)
             post_res = await client.post(HOME_URL, data=payload)
-            post_soup = BeautifulSoup(post_res.text, "html.parser")
+            if post_res.status_code not in (200, 302):
+                logger.warning(f"Unexpected status {post_res.status_code} during course switch for {code}")
 
-            # Update ViewState tokens for subsequent request
+            post_soup = BeautifulSoup(post_res.text, "html.parser")
             new_vs = post_soup.find("input", {"name": "__VIEWSTATE"})
             new_vsg = post_soup.find("input", {"name": "__VIEWSTATEGENERATOR"})
             if new_vs and new_vs.get("value"):
@@ -136,8 +145,12 @@ async def parse_active_assignments(asp_session_id: str) -> Dict[str, List[Assign
             if new_vsg and new_vsg.get("value"):
                 vs_generator = new_vsg.get("value")
 
-            # GET assignment list view[cite: 1]
+            # GET assignment list view
             list_res = await client.get(LIST_VIEW_URL)
+            if list_res.status_code not in (200, 302):
+                logger.warning(f"Failed to fetch assignment list view for course {code}")
+                continue
+
             list_soup = BeautifulSoup(list_res.text, "html.parser")
 
             panels = list_soup.select('div[id^="MainContent_gvTileRepeaterAssignment_pnl_"]')
@@ -163,7 +176,6 @@ async def parse_active_assignments(asp_session_id: str) -> Dict[str, List[Assign
                 sr_no_el = panel.select_one(".hideinMobileView.col-xs-9.col-sm-9.col-md-1.rightBorder")
                 sr_no = sr_no_el.get_text(strip=True) if sr_no_el else ""
 
-                # Apply strict filtering criteria
                 if is_assignment_active(due_date_str=due_date, status=status):
                     item = AssignmentItem(
                         id=f"{code}_sr{sr_no}",
